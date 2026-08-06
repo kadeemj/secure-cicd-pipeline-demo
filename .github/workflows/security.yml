@@ -1,0 +1,140 @@
+name: Security Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secrets-scan:
+    name: Secrets Scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # full history so gitleaks can scan past commits too
+
+      - name: Run gitleaks
+        id: gitleaks
+        continue-on-error: true
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --report-format sarif --report-path /repo/gitleaks.sarif \
+            --exit-code 1 --redact
+
+      - name: Upload gitleaks SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+      - name: Enforce secrets gate
+        if: steps.gitleaks.outcome == 'failure'
+        run: |
+          echo "::error::gitleaks detected a secret. See Security tab / logs."
+          exit 1
+
+  sca-scan:
+    name: Dependency Scan (Trivy SCA)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run Trivy filesystem/dependency scan
+        id: trivy
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy
+
+      - name: Enforce dependency gate
+        if: steps.trivy.outcome == 'failure'
+        run: |
+          echo "::error::Trivy found CRITICAL/HIGH vulnerabilities. See Security tab / logs."
+          exit 1
+
+  sast-scan:
+    name: Static Analysis (Semgrep)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:1.172.0
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Run Semgrep
+        id: semgrep
+        continue-on-error: true
+        run: |
+          semgrep scan \
+            --config p/owasp-top-ten \
+            --config p/security-audit \
+            --sarif --sarif-output semgrep.sarif \
+            --error \
+            .
+
+      - name: Upload Semgrep SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Enforce SAST gate
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "::error::Semgrep found blocking findings. See Security tab / logs."
+          exit 1
+
+  security-gate:
+    name: Security Gate
+    runs-on: ubuntu-latest
+    needs: [secrets-scan, sca-scan, sast-scan]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Verify all security jobs passed
+        run: |
+          echo "secrets-scan: ${{ needs.secrets-scan.result }}"
+          echo "sca-scan: ${{ needs.sca-scan.result }}"
+          echo "sast-scan: ${{ needs.sast-scan.result }}"
+          if [[ "${{ needs.secrets-scan.result }}" != "success" || \
+                "${{ needs.sca-scan.result }}" != "success" || \
+                "${{ needs.sast-scan.result }}" != "success" ]]; then
+            echo "::error::One or more security gates failed. Blocking merge."
+            exit 1
+          fi
+          echo "All security gates passed."
