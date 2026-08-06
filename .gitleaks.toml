@@ -1,0 +1,16 @@
+# Extends gitleaks' default rule set. The only addition is a narrow,
+# path-scoped exception: README.md intentionally documents (in prose) the
+# fake AWS key seeded on the demo/seeded-vulnerabilities branch (see the
+# "Seeded vulnerabilities" section), which otherwise trips the
+# aws-access-token rule as a plain string match. Scoping the exception to
+# this one file (rather than the string itself) means the identical value
+# still fires the rule everywhere else — including src/config.js on the
+# demo branch, which is the point of that branch.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known example values referenced in documentation"
+paths = [
+  '''README\.md''',
+]

@@ -28,7 +28,8 @@ jobs:
         continue-on-error: true
         run: |
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
-            git /repo --report-format sarif --report-path /repo/gitleaks.sarif \
+            git /repo --config /repo/.gitleaks.toml \
+            --report-format sarif --report-path /repo/gitleaks.sarif \
             --exit-code 1 --redact
 
       - name: Upload gitleaks SARIF
