@@ -20,21 +20,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0 # full history so gitleaks can scan past commits too
 
       - name: Run gitleaks
         id: gitleaks
         continue-on-error: true
         run: |
           docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
-            git /repo --config /repo/.gitleaks.toml \
+            dir /repo --config /repo/.gitleaks.toml \
             --report-format sarif --report-path /repo/gitleaks.sarif \
             --exit-code 1 --redact
-
-      - name: DEBUG print sarif
-        if: always()
-        run: cat gitleaks.sarif
 
       - name: Upload gitleaks SARIF
         if: always()

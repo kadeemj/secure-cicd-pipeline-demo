@@ -31,7 +31,7 @@ the actual thing standing between a PR and the merge button.
 
 | Gate | Tool | What it scans | Threshold | Enforcement |
 |---|---|---|---|---|
-| Secrets scanning | [gitleaks](https://github.com/gitleaks/gitleaks) v8.30.1 | Full git history (`git log -p` equivalent) | Any match against gitleaks' default rule set | Exits non-zero on any finding |
+| Secrets scanning | [gitleaks](https://github.com/gitleaks/gitleaks) v8.30.1 | Current working tree (`gitleaks dir`) | Any match against gitleaks' default rule set | Exits non-zero on any finding |
 | Dependency scan (SCA) | [Trivy](https://github.com/aquasecurity/trivy) v0.36.0 | `package-lock.json` / filesystem | CRITICAL, HIGH | Exits non-zero at or above threshold |
 | Static analysis (SAST) | [Semgrep](https://semgrep.dev/) 1.172.0 | Application source (`p/owasp-top-ten`, `p/security-audit`) | Any `ERROR`-level finding | `--error` flag exits non-zero |
 
@@ -105,6 +105,15 @@ is the merge gate, and it already rejects direct pushes of unvetted commits too)
   tags on the first run and failed the SAST gate on its own config, which is what
   prompted pinning every reference. Dependabot understands and updates SHA-pinned
   actions automatically, so this doesn't sacrifice update automation.
+- **`gitleaks dir` (working tree), not `gitleaks git` (full history).** The obvious
+  choice for a secrets gate is scanning full git history, but that's the wrong default
+  for a per-PR merge gate: `gitleaks git` scans every commit reachable in the fetched
+  repository, not just the branch under review, so a secret seeded once on
+  `demo/seeded-vulnerabilities` would permanently fail the gate on `main` and every
+  future PR too, forever, regardless of which branch actually introduced it. Scanning
+  the current working tree matches the actual question a merge gate needs answered —
+  "does the code being proposed right now contain a secret?" — and leaves full-history
+  auditing as a separate, deliberate job rather than baking it into every PR check.
 
 ## Future improvements
 
