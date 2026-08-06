@@ -2,3 +2,4 @@ node_modules/
 *.sarif
 npm-debug.log*
 .DS_Store
+.claude/
