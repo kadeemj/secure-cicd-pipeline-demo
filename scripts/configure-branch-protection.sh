@@ -2,6 +2,12 @@
 # Configures branch protection on `main` so the "Security Gate" status
 # check (from .github/workflows/security.yml) must pass before merge.
 #
+# "Security Gate" is an aggregating job: it depends on Build & Test plus the
+# three scanner jobs and fails if any of them did not succeed. Requiring that
+# one check therefore requires all of them, and stays correct as gates are
+# added — which is why this script hardcodes a single context rather than
+# enumerating every job name.
+#
 # Prereqs: gh CLI authenticated with repo-admin rights.
 # Usage: ./scripts/configure-branch-protection.sh [owner/repo] [branch]
 

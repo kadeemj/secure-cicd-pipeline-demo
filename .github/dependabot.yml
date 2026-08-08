@@ -1,0 +1,32 @@
+version: 2
+updates:
+  # The README argues for SHA-pinning GitHub Actions on supply-chain grounds,
+  # and cites Dependabot's ability to update SHA-pinned refs as the reason
+  # that choice costs nothing. This is that claim actually wired up.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
+    groups:
+      # Patch/minor bumps land as one PR; majors stay separate so they get
+      # read individually.
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

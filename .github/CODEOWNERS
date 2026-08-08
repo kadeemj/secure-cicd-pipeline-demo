@@ -1,0 +1,16 @@
+# Default owner for everything in this repository.
+* @kadeemj
+
+# The pipeline definition, its scanner configuration, and the branch-protection
+# script are the security-sensitive surface — changes here can weaken or
+# disable the merge gate itself.
+/.github/workflows/ @kadeemj
+/.gitleaks.toml     @kadeemj
+/.trivyignore       @kadeemj
+/scripts/           @kadeemj
+
+# NOTE: CODEOWNERS only enforces review if branch protection sets
+# `require_code_owner_reviews`. It deliberately does not here — see the comment
+# in scripts/configure-branch-protection.sh explaining why a required review
+# count deadlocks a solo-maintained repository. This file therefore documents
+# ownership and auto-requests review; it is not currently a merge gate.
