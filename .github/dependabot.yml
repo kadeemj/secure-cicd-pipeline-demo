@@ -7,6 +7,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Don't propose a version published in the last week. Automated dependency
+    # updates otherwise pull a freshly-published release in within hours, which
+    # is precisely the window a compromised package needs — most malicious
+    # releases are caught and yanked within days. Waiting costs a week of lag
+    # on non-security updates; Dependabot's security advisories are unaffected.
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: ci
     labels:
@@ -17,6 +24,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Same reasoning as above, with a longer hold on majors: they get read by
+    # hand anyway, so there is no cost to letting them settle first.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
     commit-message:
       prefix: deps
     labels:

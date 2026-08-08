@@ -122,6 +122,15 @@ is the merge gate, and it already rejects direct pushes of unvetted commits too)
   prompted pinning every reference. Dependabot understands and updates SHA-pinned
   actions automatically, and `.github/dependabot.yml` has it watching both the Actions
   and npm ecosystems, so this doesn't sacrifice update automation.
+- **A cooldown on automated updates.** `.github/dependabot.yml` sets
+  `cooldown.default-days: 7` (30 for npm majors), so Dependabot won't propose a version
+  published in the last week. Automated updates otherwise pull a fresh release in within
+  hours — exactly the window a compromised package needs, since most malicious releases
+  are found and yanked within days. Security advisories are unaffected. This one has the
+  same origin story as the SHA-pinning above: Semgrep's `dependabot-missing-cooldown`
+  rule failed the SAST gate on the `dependabot.yml` added in the very commit that was
+  meant to improve the repo's supply-chain posture. Two for two on the pipeline catching
+  its own configuration.
 - **Scanner container images pinned by digest, not tag.** `ghcr.io/gitleaks/gitleaks`
   and `semgrep/semgrep` are referenced as `@sha256:…`. A Docker tag is exactly as
   repointable as a Git tag, so pinning the actions by SHA while leaving `:v8.30.1` on
