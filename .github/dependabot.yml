@@ -1,0 +1,44 @@
+version: 2
+updates:
+  # The README argues for SHA-pinning GitHub Actions on supply-chain grounds,
+  # and cites Dependabot's ability to update SHA-pinned refs as the reason
+  # that choice costs nothing. This is that claim actually wired up.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # Don't propose a version published in the last week. Automated dependency
+    # updates otherwise pull a freshly-published release in within hours, which
+    # is precisely the window a compromised package needs — most malicious
+    # releases are caught and yanked within days. Waiting costs a week of lag
+    # on non-security updates; Dependabot's security advisories are unaffected.
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    # Same reasoning as above, with a longer hold on majors: they get read by
+    # hand anyway, so there is no cost to letting them settle first.
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    commit-message:
+      prefix: deps
+    labels:
+      - dependencies
+    groups:
+      # Patch/minor bumps land as one PR; majors stay separate so they get
+      # read individually.
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

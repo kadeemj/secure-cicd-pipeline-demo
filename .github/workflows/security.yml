@@ -11,6 +11,30 @@ permissions:
   contents: read
 
 jobs:
+  build-test:
+    name: Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` (not `npm install`) so the lockfile is authoritative: it fails
+      # rather than silently resolving a different tree than the one the SCA
+      # gate scanned.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
   secrets-scan:
     name: Secrets Scan (gitleaks)
     runs-on: ubuntu-latest
@@ -21,21 +45,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Image pinned by digest, not tag: a Docker tag is as repointable as a
+      # Git tag, so `:v8.30.1` alone would leave the same mutable-reference
+      # hole that SHA-pinning the actions above closes.
       - name: Run gitleaks
         id: gitleaks
         continue-on-error: true
         run: |
-          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+          docker run --rm -v "$PWD:/repo" \
+            ghcr.io/gitleaks/gitleaks@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
             dir /repo --config /repo/.gitleaks.toml \
             --report-format sarif --report-path /repo/gitleaks.sarif \
             --exit-code 1 --redact
 
       - name: Upload gitleaks SARIF
-        if: always()
+        # Code scanning uploads require a write-scoped token, which GitHub
+        # never grants to a pull_request run from a fork. Skipping the upload
+        # there keeps the failure attributable to a real finding instead of a
+        # permissions error; the gate below still enforces on fork PRs.
+        if: always() && github.event.pull_request.head.repo.fork != true
         uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
+
+      - name: Note skipped SARIF upload
+        if: always() && github.event.pull_request.head.repo.fork == true
+        run: |
+          echo "::notice::Fork PR — SARIF upload skipped (no security-events: write). Findings still gate the merge; see this job's log."
 
       - name: Enforce secrets gate
         if: steps.gitleaks.outcome == 'failure'
@@ -53,6 +90,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # `ignore-unfixed` is deliberately NOT set: a CRITICAL with no upstream
+      # patch is still a CRITICAL, and silently passing it would hollow out
+      # this gate. Unactionable findings get a reviewed, dated entry in
+      # .trivyignore instead of a blanket exemption.
       - name: Run Trivy filesystem/dependency scan
         id: trivy
         continue-on-error: true
@@ -63,17 +104,22 @@ jobs:
           scanners: 'vuln'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
-          ignore-unfixed: true
+          trivyignores: '.trivyignore'
           format: 'sarif'
           output: 'trivy-results.sarif'
           limit-severities-for-sarif: true
 
       - name: Upload Trivy SARIF
-        if: always()
+        if: always() && github.event.pull_request.head.repo.fork != true
         uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
         with:
           sarif_file: trivy-results.sarif
           category: trivy
+
+      - name: Note skipped SARIF upload
+        if: always() && github.event.pull_request.head.repo.fork == true
+        run: |
+          echo "::notice::Fork PR — SARIF upload skipped (no security-events: write). Findings still gate the merge; see this job's log."
 
       - name: Enforce dependency gate
         if: steps.trivy.outcome == 'failure'
@@ -85,7 +131,8 @@ jobs:
     name: Static Analysis (Semgrep)
     runs-on: ubuntu-latest
     container:
-      image: semgrep/semgrep:1.172.0
+      # Digest-pinned for the same reason as the gitleaks image above.
+      image: semgrep/semgrep@sha256:65dcd4408adda7c183a6b4550cb1e9b19f7f627a6fbb7e0559bd466bedc44d7b
     permissions:
       contents: read
       security-events: write
@@ -93,6 +140,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # NOTE: `p/owasp-top-ten` and `p/security-audit` are resolved from
+      # Semgrep's registry at run time, so their contents can change between
+      # runs. That is a real residual mutable-dependency risk — see the
+      # "Known limitations" section of the README.
       - name: Run Semgrep
         id: semgrep
         continue-on-error: true
@@ -105,11 +156,16 @@ jobs:
             .
 
       - name: Upload Semgrep SARIF
-        if: always()
+        if: always() && github.event.pull_request.head.repo.fork != true
         uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
+
+      - name: Note skipped SARIF upload
+        if: always() && github.event.pull_request.head.repo.fork == true
+        run: |
+          echo "::notice::Fork PR — SARIF upload skipped (no security-events: write). Findings still gate the merge; see this job's log."
 
       - name: Enforce SAST gate
         if: steps.semgrep.outcome == 'failure'
@@ -120,20 +176,25 @@ jobs:
   security-gate:
     name: Security Gate
     runs-on: ubuntu-latest
-    needs: [secrets-scan, sca-scan, sast-scan]
+    needs: [build-test, secrets-scan, sca-scan, sast-scan]
     if: always()
     permissions:
       contents: read
     steps:
-      - name: Verify all security jobs passed
+      # This job's name is the single required status check on `main`, so it is
+      # intentionally stable — adding a gate above means adding it to `needs`
+      # here, with no branch-protection change.
+      - name: Verify all gates passed
         run: |
+          echo "build-test:   ${{ needs.build-test.result }}"
           echo "secrets-scan: ${{ needs.secrets-scan.result }}"
-          echo "sca-scan: ${{ needs.sca-scan.result }}"
-          echo "sast-scan: ${{ needs.sast-scan.result }}"
-          if [[ "${{ needs.secrets-scan.result }}" != "success" || \
-                "${{ needs.sca-scan.result }}" != "success" || \
-                "${{ needs.sast-scan.result }}" != "success" ]]; then
-            echo "::error::One or more security gates failed. Blocking merge."
+          echo "sca-scan:     ${{ needs.sca-scan.result }}"
+          echo "sast-scan:    ${{ needs.sast-scan.result }}"
+          if [[ "${{ needs.build-test.result }}"   != "success" || \
+                "${{ needs.secrets-scan.result }}" != "success" || \
+                "${{ needs.sca-scan.result }}"     != "success" || \
+                "${{ needs.sast-scan.result }}"    != "success" ]]; then
+            echo "::error::One or more gates failed. Blocking merge."
             exit 1
           fi
-          echo "All security gates passed."
+          echo "All gates passed."
