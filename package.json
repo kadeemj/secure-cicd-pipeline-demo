@@ -5,7 +5,8 @@
   "description": "Small demo app used to exercise a security-gated GitHub Actions pipeline (secrets scanning, SCA, SAST).",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "node --test"
   },
   "dependencies": {
     "express": "^4.21.2",

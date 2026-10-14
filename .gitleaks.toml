@@ -1,16 +1,29 @@
-# Extends gitleaks' default rule set. The only addition is a narrow,
-# path-scoped exception: README.md intentionally documents (in prose) the
-# fake AWS key seeded on the demo/seeded-vulnerabilities branch (see the
-# "Seeded vulnerabilities" section), which otherwise trips the
-# aws-access-token rule as a plain string match. Scoping the exception to
-# this one file (rather than the string itself) means the identical value
-# still fires the rule everywhere else — including src/config.js on the
-# demo branch, which is the point of that branch.
+# Extends gitleaks' default rule set.
+#
+# The only addition is a single narrowly-scoped exception. README.md documents
+# (in prose) the fake AWS key seeded on the demo/seeded-vulnerabilities branch
+# — see its "Seeded vulnerabilities" section — which otherwise trips the
+# aws-access-token rule as a plain string match.
+#
+# `matchCondition = "AND"` means BOTH conditions must hold for a finding to be
+# suppressed: the file must be README.md *and* the matched secret must be
+# exactly that documented fake value. An earlier version of this file scoped
+# the exception by path alone, which suppressed every possible secret in
+# README.md, not just the one we intend to document.
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Known example values referenced in documentation"
+[[allowlists]]
+description = "The one documented fake AWS key, and only where it is documented"
+matchCondition = "AND"
 paths = [
   '''README\.md''',
+]
+#
+# The final two characters are written as a quantified class rather than
+# literally on purpose: spelling the value out in full here would make this
+# config file itself an AKIA + 16-char match, and this allowlist is scoped to
+# README.md, so gitleaks would (correctly) flag its own configuration.
+regexes = [
+  '''AKIAFAKEKEYNOTREAL[X]{2}''',
 ]

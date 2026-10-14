@@ -1,0 +1,17 @@
+# Reviewed exceptions to the dependency (SCA) gate.
+#
+# The Trivy gate deliberately does NOT set `ignore-unfixed`, so a CRITICAL or
+# HIGH with no upstream patch available blocks the merge instead of passing
+# silently. This file is the escape hatch for that case — but it is a
+# per-vulnerability, reviewed decision, not a blanket exemption.
+#
+# Every entry must record why it is safe to ignore and when it expires, e.g.:
+#
+#   # CVE-2024-00000 — prototype pollution in <pkg>. No fix released upstream.
+#   # Not reachable: the affected API (<fn>) is never called from this app.
+#   # Re-review by 2026-12-01 (tracked in issue #NN).
+#   CVE-2024-00000 exp:2026-12-01
+#
+# An entry without a rationale and an expiry date should not pass review.
+#
+# Currently empty: the dependency tree has no CRITICAL/HIGH findings.
