@@ -50,3 +50,17 @@ test('GET /unknown returns 404', async () => {
   const res = await fetch(`${baseUrl}/nope`);
   assert.equal(res.status, 404);
 });
+
+test('GET /diagnostics/ping is rate limited per client', async () => {
+  // Invalid hosts are rejected after the limiter runs, so these requests
+  // consume quota without spawning `ping`. Earlier tests in this file have
+  // already used some of the window; keep going until we hit the cap.
+  let res;
+  for (let i = 0; i < 20; i += 1) {
+    res = await fetch(`${baseUrl}/diagnostics/ping`);
+    if (res.status === 429) break;
+    assert.equal(res.status, 400);
+  }
+  assert.equal(res.status, 429);
+  assert.ok(res.headers.get('ratelimit-policy'));
+});
