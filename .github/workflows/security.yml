@@ -64,7 +64,7 @@ jobs:
         # there keeps the failure attributable to a real finding instead of a
         # permissions error; the gate below still enforces on fork PRs.
         if: always() && github.event.pull_request.head.repo.fork != true
-        uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        uses: github/codeql-action/upload-sarif@913e1bb775545322a3613f16c3483c0ac3050da5 # v4
         with:
           sarif_file: gitleaks.sarif
           category: gitleaks
@@ -111,7 +111,7 @@ jobs:
 
       - name: Upload Trivy SARIF
         if: always() && github.event.pull_request.head.repo.fork != true
-        uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        uses: github/codeql-action/upload-sarif@913e1bb775545322a3613f16c3483c0ac3050da5 # v4
         with:
           sarif_file: trivy-results.sarif
           category: trivy
@@ -157,7 +157,7 @@ jobs:
 
       - name: Upload Semgrep SARIF
         if: always() && github.event.pull_request.head.repo.fork != true
-        uses: github/codeql-action/upload-sarif@24c7eb380a2dc368f2d129e4c65e51d172983a1e # v4
+        uses: github/codeql-action/upload-sarif@913e1bb775545322a3613f16c3483c0ac3050da5 # v4
         with:
           sarif_file: semgrep.sarif
           category: semgrep
